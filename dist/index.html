@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Telegram Mini App + Serverless Bot</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root { color-scheme: light dark; --tg-blue:#229ED9; --bg:#0e1621; --card:#17212b; --text:#e8eef4; --muted:#8b9aa9; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
+  header { background:linear-gradient(135deg,#229ED9,#0e7ab5); padding:28px 20px; text-align:center; }
+  header h1 { margin:0 0 8px; font-size:28px; }
+  header p { margin:0; opacity:.92; }
+  .badge { display:inline-block; margin-top:12px; background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.35); padding:6px 12px; border-radius:999px; font-size:13px; }
+  main { max-width:960px; margin:0 auto; padding:20px; display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); }
+  .card { background:var(--card); border:1px solid #242f3d; border-radius:14px; padding:18px; }
+  .card h2 { margin:0 0 10px; font-size:18px; }
+  .card p, .card li { color:#c6d2de; font-size:14px; line-height:1.55; }
+  code { background:#0b1118; border:1px solid #2b3948; padding:2px 6px; border-radius:6px; font-size:12.5px; color:#9fe3ff; }
+  pre { background:#0b1118; border:1px solid #2b3948; border-radius:10px; padding:12px; overflow:auto; font-size:12.5px; color:#cfe9ff; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+  button { background:var(--tg-blue); color:#fff; border:0; border-radius:10px; padding:10px 16px; font-size:14px; font-weight:600; cursor:pointer; }
+  button.secondary { background:#242f3d; color:#dbe7f1; border:1px solid #344658; }
+  #user-card { margin-top:12px; background:#0b1118; border:1px dashed #344658; border-radius:10px; padding:10px 12px; font-size:13px; }
+  footer { text-align:center; color:var(--muted); font-size:12.5px; padding:18px; }
+  .status-dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#31d158; margin-right:6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Telegram Mini App (Website)</h1>
+  <p>Linked with a serverless Telegram bot &bull; WebApp + webhook ready</p>
+  <div class="badge"><span class="status-dot"></span><span id="env-label">Demo mode outside Telegram</span></div>
+</header>
+<main>
+  <section class="card">
+    <h2>Mini App status</h2>
+    <p>This static site is the Mini App frontend. Open it via the bot's <code>Menu Button / Web App</code> (BotFather &rarr; <code>/setmenubutton</code> or <code>/newapp</code>).</p>
+    <div id="user-card">Waiting for <code>Telegram.WebApp</code> initData&hellip;</div>
+    <div class="row">
+      <button id="main-btn">Send to bot</button>
+      <button id="expand-btn" class="secondary">Expand</button>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Serverless bot wiring</h2>
+    <ol>
+      <li>Deploy bot webhook: <code>POST /bot&lt;TOKEN&gt;</code> on your serverless host.</li>
+      <li>Set webhook: <code>setWebhook https://api.telegram.org/bot&lt;TOKEN&gt;/setWebhook?url=https://&lt;host&gt;/bot&lt;TOKEN&gt;</code></li>
+      <li>Validate Mini App <code>initData</code> with <code>BOT_TOKEN</code> (HMAC-SHA256).</li>
+      <li>Reply with <code>answerWebAppQuery</code> or <code>sendMessage</code> with <code>web_app</code> button.</li>
+    </ol>
+    <pre>POST /bot$TOKEN  -&gt; verify initData
+-&gt; { "method": "sendMessage",
+     "chat_id": 123,
+     "text": "Opened from Mini App!" }</pre>
+  </section>
+  <section class="card">
+    <h2>BotFather checklist</h2>
+    <p><code>/newbot</code> &rarr; save <code>BOT_TOKEN</code> as serverless secret. <code>/newapp</code> &rarr; point Web App URL to this deployment. <code>/setmenubutton</code> &rarr; link Mini App to chat menu.</p>
+    <div class="row">
+      <button class="secondary" onclick="document.getElementById('how').scrollIntoView({behavior:'smooth'})">How initData works</button>
+    </div>
+  </section>
+  <section class="card" id="how">
+    <h2>initData preview</h2>
+    <p>Inside Telegram, <code>window.Telegram.WebApp.initData</code> carries user + auth hash. Outside Telegram this page runs in demo mode.</p>
+    <pre id="initdata">(no initData — demo mode)</pre>
+  </section>
+</main>
+<footer>Static Mini App frontend &bull; pairs with any Java / Node / Python serverless bot &bull; <span id="ts"></span></footer>
+<script>
+(function () {
+  document.getElementById('ts').textContent = new Date().toISOString().slice(0, 10);
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var label = document.getElementById('env-label');
+  var card = document.getElementById('user-card');
+  var pre = document.getElementById('initdata');
+  if (tg) {
+    try { tg.ready(); tg.expand(); } catch (e) {}
+    label.textContent = 'Running inside Telegram WebApp';
+    var user = tg.initDataUnsafe && tg.initDataUnsafe.user;
+    card.textContent = user ? ('Hello, ' + (user.first_name || user.username || user.id) + ' (id ' + user.id + ')') : 'Telegram context detected (no user).';
+    pre.textContent = tg.initData || '(empty initData)';
+    var mb = document.getElementById('main-btn');
+    mb.textContent = 'Send to bot';
+    mb.onclick = function () { try { tg.sendData(JSON.stringify({ source: 'mini-app', ts: Date.now() })); } catch (e) { alert('sendData failed: ' + e); } };
+    document.getElementById('expand-btn').onclick = function () { try { tg.expand(); } catch (e) {} };
+  } else {
+    document.getElementById('main-btn').onclick = function () { card.textContent = 'Demo: open this URL from your Telegram bot Menu Button to test sendData.'; };
+    document.getElementById('expand-btn').onclick = function () { alert('Expand is only available inside Telegram.'); };
+  }
+})();
+</script>
+</body>
+</html>
